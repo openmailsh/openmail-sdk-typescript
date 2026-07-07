@@ -8,6 +8,16 @@ permissions:
   id-token: write
 
 on:
+  # Primary trigger: the private API repo's CI commits an updated openapi.json
+  # into this repo whenever its canonical spec changes on main (see that repo's
+  # ci.yml notify-sdk-repo job). That push fires generation against the exact,
+  # committed spec — no race against the API's production deploy.
+  push:
+    branches: [main]
+    paths:
+      - openapi.json
+      - .speakeasy/gen.yaml
+      - .speakeasy/sdk-generation-overlay.yaml
   workflow_dispatch:
     inputs:
       force:
@@ -17,12 +27,7 @@ on:
       set_version:
         description: Override the SDK version
         type: string
-  # Fallback safety net: the primary trigger is the private API repo firing
-  # workflow_dispatch on every openapi.json change (see its ci.yml
-  # notify-sdk-repo job). Since this repo's source is a remote URL rather
-  # than a local file, there's no push-to-this-repo event to trigger on —
-  # if that cross-repo dispatch ever fails silently, this daily poll is
-  # what catches drift instead of it going unnoticed indefinitely.
+  # Backstop: catches drift if the cross-repo spec sync ever fails silently.
   schedule:
     - cron: "0 0 * * *"
 

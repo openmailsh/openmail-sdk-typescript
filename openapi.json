@@ -1,0 +1,1942 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OpenMail API",
+    "description": "Email infrastructure API for AI agents. Create inboxes, send and receive email, and get real-time notifications via webhooks.",
+    "version": "1.0.0",
+    "license": {
+      "name": "Proprietary"
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API key"
+      }
+    },
+    "schemas": {
+      "MessageDirection": {
+        "type": "string",
+        "enum": [
+          "inbound",
+          "outbound"
+        ]
+      },
+      "Pod": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "OpenMail pod ID"
+          },
+          "clientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Your own identifier for the pod, if set."
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Human-readable label, if set."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Whether this is the account's default pod. Every account has exactly one; it is created automatically and cannot be deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Inbox": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "OpenMail inbox ID"
+          },
+          "podId": {
+            "type": "string",
+            "description": "ID of the pod this inbox belongs to. Inboxes created without an explicit pod land in your account's default pod."
+          },
+          "address": {
+            "type": "string",
+            "format": "email",
+            "description": "Full email address"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Sender display name"
+          },
+          "webhookUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "URL that receives signed webhook events for this inbox, if set. Overrides the account-level webhook for this inbox only."
+          },
+          "webhookSecret": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Signing secret for this inbox's webhook. Only present in the response when the secret is generated or rotated (on create, on first setting a webhook URL, or via the rotate-secret endpoint) — it is never returned afterward."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MessageDirection"
+          },
+          "fromAddr": {
+            "type": "string"
+          },
+          "toAddr": {
+            "type": "string",
+            "description": "Your OpenMail inbox address for inbound messages. For outbound sends, the primary recipient."
+          },
+          "headerTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Inbound only. The address the sender wrote to (comma-separated if multiple). When deliveryRole is cc, reply to this address — not fromAddr."
+          },
+          "deliveryRole": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "to",
+              "cc",
+              null
+            ],
+            "description": "Inbound only. to if your inbox was the main recipient; cc if you were copied on the email."
+          },
+          "cc": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Email addresses copied on the message."
+          },
+          "subject": {
+            "type": "string"
+          },
+          "bodyText": {
+            "type": "string"
+          },
+          "bodyHtml": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "filename": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                },
+                "sizeBytes": {
+                  "type": "integer"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Signed URL for download"
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "sent",
+              "received",
+              "failed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Thread": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "isRead": {
+            "type": "boolean",
+            "description": "Whether the thread has been marked as read. Defaults to false for new inbound threads. Auto-set to true when a reply is sent."
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messageCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v1/pods": {
+      "post": {
+        "operationId": "createPod",
+        "summary": "Create pod",
+        "tags": [
+          "pods"
+        ],
+        "description": "Create a new pod (an isolated sub-account for one of your end users or tenants). Pass your own `clientId` to map the pod to a record in your system and address it later without storing the OpenMail ID.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "clientId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 255,
+                    "description": "Your own stable identifier for this pod (e.g. your user/tenant ID). Must be unique within your account. Use it in place of the pod ID on any pod or inbox endpoint."
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 255,
+                    "description": "Human-readable label shown in the console."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pod created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Pod created",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Pod"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A pod with the same `clientId` already exists in your account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A pod with the same `clientId` already exists in your account",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listPods",
+        "summary": "List pods",
+        "tags": [
+          "pods"
+        ],
+        "description": "List all pods for your account. The default pod is always returned first. Supports pagination.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Max results to return (clamped to 100)"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "description": "Number of results to skip"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of pods",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "List of pods",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Pod"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, invalid, or expired API key",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pods/{id}": {
+      "get": {
+        "operationId": "getPod",
+        "summary": "Get pod",
+        "tags": [
+          "pods"
+        ],
+        "description": "Retrieve a single pod by its OpenMail ID or your own `clientId`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Pod ID or your own `clientId`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pod details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Pod details",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Pod"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePod",
+        "summary": "Update pod",
+        "tags": [
+          "pods"
+        ],
+        "description": "Update a pod's `clientId` or `name`. Only the fields you include are changed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "clientId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 255,
+                    "description": "Your own identifier for this pod. Set null to clear."
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 255,
+                    "description": "Human-readable label. Set null to clear."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Pod ID or your own `clientId`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pod updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Pod updated",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Pod"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A pod with the same `clientId` already exists in your account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A pod with the same `clientId` already exists in your account",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePod",
+        "summary": "Delete pod",
+        "tags": [
+          "pods"
+        ],
+        "description": "Permanently delete a pod. The pod must be empty (no inboxes or pod-scoped domains) and cannot be the default pod.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Pod ID or your own `clientId`"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Pod deleted"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Pod still has inboxes (`pod_not_empty`), still owns pod-scoped domains (`pod_has_domains`), or is the default pod (`default_pod`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Pod still has inboxes (`pod_not_empty`), still owns pod-scoped domains (`pod_has_domains`), or is the default pod (`default_pod`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes": {
+      "post": {
+        "operationId": "createInbox",
+        "summary": "Create inbox",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "Create a new email inbox. Optionally set a sender display name.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mailboxName": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 30,
+                    "description": "Inbox local part (default: random)"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Sender display name shown in the From header"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Domain for the inbox address. Defaults to your account domain (e.g. `openmail.sh`). Pass a verified custom domain you own to create the inbox on it (e.g. `agent-mail.example.com`). The domain must already be added and verified for your account; the account default never switches automatically."
+                  },
+                  "webhookUrl": {
+                    "type": "string",
+                    "minLength": 0,
+                    "description": "URL to receive signed webhook events for this inbox (e.g. inbound mail). Overrides the account-level webhook for this inbox only. A signing secret is generated and returned once in the response body."
+                  },
+                  "podId": {
+                    "type": "string",
+                    "description": "Pod to create the inbox in. Accepts the pod ID or your own `clientId`. Omit to place the inbox in your account's default pod."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inbox created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inbox created",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Inbox"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid mailbox name, `domain` is not verified or not available in the selected pod, or `podId` does not match a pod in your account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Invalid mailbox name, `domain` is not verified or not available in the selected pod, or `podId` does not match a pod in your account",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Pro plan: inbox creation is paused because the account's monthly spend limit was reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Pro plan: inbox creation is paused because the account's monthly spend limit was reached",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Address already in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Address already in use",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Plan inbox limit reached, or `webhookUrl` failed validation (`invalid_webhook_url`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Plan inbox limit reached, or `webhookUrl` failed validation (`invalid_webhook_url`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (100 inbox creations/day)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Rate limit exceeded (100 inbox creations/day)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listInboxes",
+        "summary": "List inboxes",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "List all inboxes for your account. Supports pagination.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Max results to return (clamped to 100)"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "description": "Number of results to skip"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "podId",
+            "required": false,
+            "description": "Filter to inboxes in a single pod. Accepts the pod ID or your own `clientId`. An unknown value returns an empty list."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of inboxes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "List of inboxes",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Inbox"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, invalid, or expired API key",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes/{id}": {
+      "get": {
+        "operationId": "getInbox",
+        "summary": "Get inbox",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "Retrieve a single inbox by its ID, including its address, display name, and creation time.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inbox details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inbox details",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Inbox"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateInbox",
+        "summary": "Update inbox",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "Update an inbox's settings, such as the sender display name shown in the From header.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "displayName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 200,
+                    "description": "Sender display name. Set null to clear."
+                  },
+                  "webhookUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 0,
+                    "description": "URL to receive signed webhook events for this inbox. Set null to clear and revert to the account-level webhook. A signing secret is generated the first time a webhook URL is set on this inbox and returned once in the response body."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inbox updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inbox updated",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Inbox"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`webhookUrl` failed validation (`invalid_webhook_url`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "`webhookUrl` failed validation (`invalid_webhook_url`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteInbox",
+        "summary": "Delete inbox",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "Permanently delete an inbox and stop delivery to its address. This action cannot be undone.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Inbox deleted"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes/{id}/webhook/rotate-secret": {
+      "post": {
+        "operationId": "rotateInboxWebhookSecret",
+        "summary": "Rotate webhook secret",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "Generate a new signing secret for this inbox's webhook. The inbox must already have a webhook URL set. The previous secret is invalidated immediately.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "New signing secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "New signing secret",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": [
+                    "webhookSecret"
+                  ],
+                  "properties": {
+                    "webhookSecret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No webhook URL is set on this inbox (`no_webhook_url`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "No webhook URL is set on this inbox (`no_webhook_url`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes/{id}/webhook/test": {
+      "post": {
+        "operationId": "testInboxWebhook",
+        "summary": "Send test webhook",
+        "tags": [
+          "inboxes"
+        ],
+        "description": "Send a signed test event to this inbox's webhook URL. Requires a webhook URL (and signing secret) to already be set on the inbox.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test webhook sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Test webhook sent successfully",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No webhook URL is set on this inbox (`no_webhook_url`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "No webhook URL is set on this inbox (`no_webhook_url`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The webhook endpoint returned an error status, or the request to it failed (`webhook_failed`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The webhook endpoint returned an error status, or the request to it failed (`webhook_failed`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes/{id}/send": {
+      "post": {
+        "operationId": "sendEmail",
+        "summary": "Send email",
+        "tags": [
+          "messages"
+        ],
+        "description": "Send an email from an inbox. Requires Idempotency-Key header. Use threadId to reply to an existing thread. When replying on a thread where your inbox was CC'd (deliveryRole cc), the original sender is automatically CC'd.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to",
+                  "body"
+                ],
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 998,
+                    "description": "Required for new threads. Optional when threadId is set — the thread subject is used automatically (with Re: prefix)."
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000,
+                    "description": "Email body. Plain text or HTML — HTML is auto-detected and rendered, with a plain-text fallback generated automatically."
+                  },
+                  "bodyHtml": {
+                    "type": "string",
+                    "maxLength": 500000,
+                    "description": "Provide only when the plain-text and HTML versions must differ. Omit for normal sends — put HTML in `body` instead."
+                  },
+                  "threadId": {
+                    "type": "string",
+                    "description": "Thread ID for replies"
+                  },
+                  "includeQuote": {
+                    "type": "boolean",
+                    "description": "When replying with threadId, append a quoted copy of the previous message to the body. Defaults to true. Set false to send only your reply text."
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Optional. Address that replies should be routed to (set as the `Reply-To` MIME header). Free plan: must be the address of an inbox you own in OpenMail. Pro plan or higher: any valid email address."
+                  },
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "description": "Optional CC recipients."
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to",
+                  "body"
+                ],
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 998,
+                    "description": "Required for new threads. Optional when threadId is set — the thread subject is used automatically (with Re: prefix)."
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000,
+                    "description": "Email body. Plain text or HTML — HTML is auto-detected and rendered, with a plain-text fallback generated automatically."
+                  },
+                  "bodyHtml": {
+                    "type": "string",
+                    "maxLength": 500000,
+                    "description": "Provide only when the plain-text and HTML versions must differ. Omit for normal sends — put HTML in `body` instead."
+                  },
+                  "threadId": {
+                    "type": "string",
+                    "description": "Thread ID for replies"
+                  },
+                  "includeQuote": {
+                    "type": "boolean",
+                    "description": "When replying with threadId, append a quoted copy of the previous message to the body. Defaults to true. Set false to send only your reply text."
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Optional. Address that replies should be routed to (set as the `Reply-To` MIME header). Free plan: must be the address of an inbox you own in OpenMail. Pro plan or higher: any valid email address."
+                  },
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "description": "Optional CC recipients."
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "File attachments (max 25 MB total per email)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "description": "Unique key for idempotent sends (e.g. UUID)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Email sent (or idempotent replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Email sent (or idempotent replay)",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "messageId": {
+                      "type": "string"
+                    },
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "providerMessageId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "sent",
+                        "failed"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing Idempotency-Key, missing request body, invalid 'to'/'replyTo'/'cc' address, or missing subject when required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing Idempotency-Key, missing request body, invalid 'to'/'replyTo'/'cc' address, or missing subject when required",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Sending is paused because this account's monthly spend limit was reached (`spend_cap_paused`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Sending is paused because this account's monthly spend limit was reached (`spend_cap_paused`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Feature requires a paid plan. Returned when a free-plan customer sets `replyTo` to an address that is not one of their own OpenMail inboxes (`feature_requires_paid_plan`), the account is banned (`account_banned`), or sending is suspended due to deliverability/abuse signals (`reputation_suspended`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Feature requires a paid plan. Returned when a free-plan customer sets `replyTo` to an address that is not one of their own OpenMail inboxes (`feature_requires_paid_plan`), the account is banned (`account_banned`), or sending is suspended due to deliverability/abuse signals (`reputation_suspended`).",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Inbox or thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inbox or thread not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Content blocked (`unsafe_content`, `phishing_detected`), recipient domain has no MX records (`no_mx_records`), recipient suppressed for bounce/complaint (`recipient_suppressed`), or account storage limit exceeded (`storage_limit_exceeded`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Content blocked (`unsafe_content`, `phishing_detected`), recipient domain has no MX records (`no_mx_records`), recipient suppressed for bounce/complaint (`recipient_suppressed`), or account storage limit exceeded (`storage_limit_exceeded`)",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (global daily, per-inbox daily, per-inbox burst) or cold outreach limit. Check the Retry-After response header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Rate limit exceeded (global daily, per-inbox daily, per-inbox burst) or cold outreach limit. Check the Retry-After response header.",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/attachments/{messageId}/{filename}": {
+      "get": {
+        "operationId": "getAttachment",
+        "summary": "Get attachment",
+        "tags": [
+          "attachments"
+        ],
+        "description": "Returns a 302 redirect to a signed URL for the attachment.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "messageId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "filename",
+            "required": true
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to attachment URL"
+          },
+          "404": {
+            "description": "Attachment not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Attachment not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/attachments/{messageId}/{filename}/text": {
+      "get": {
+        "operationId": "getAttachmentText",
+        "summary": "Extract attachment text",
+        "tags": [
+          "attachments"
+        ],
+        "description": "Extracts and returns the plain text content of an attachment. Supports PDF, DOCX, XLSX, PPTX, images (via OCR), and other common formats. The result is cached on the message after the first extraction.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "messageId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "filename",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extracted text content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Extracted text content",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "filename": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "extractionMethod": {
+                      "type": "string",
+                      "description": "Method used to extract text (e.g. pdf, docx, ocr)"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Attachment not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Attachment not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Text could not be extracted from the attachment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Text could not be extracted from the attachment",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes/{id}/messages": {
+      "get": {
+        "operationId": "listMessages",
+        "summary": "List messages",
+        "tags": [
+          "messages"
+        ],
+        "description": "List all messages in an inbox, across every thread. Supports pagination for high-volume inboxes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/MessageDirection"
+            },
+            "in": "query",
+            "name": "direction",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "List of messages",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, invalid, or expired API key",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Inbox not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inbox not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inboxes/{id}/threads": {
+      "get": {
+        "operationId": "listThreads",
+        "summary": "List threads",
+        "tags": [
+          "threads"
+        ],
+        "description": "List threads for an inbox. Use is_read to filter by read status — for example, ?is_read=false returns only unread threads.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "in": "query",
+            "name": "is_read",
+            "required": false,
+            "description": "Filter by read status. true = read threads only, false = unread threads only. Omit to return all."
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of threads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "List of threads",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Thread"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, invalid, or expired API key",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Inbox not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inbox not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/threads/{id}/messages": {
+      "get": {
+        "operationId": "getThreadMessages",
+        "summary": "Get thread messages",
+        "tags": [
+          "threads"
+        ],
+        "description": "Retrieve a thread and all of its messages in order, with read status and full message content.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread with messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Thread with messages",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "isRead": {
+                      "type": "boolean",
+                      "description": "Whether the thread has been marked as read"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Missing, invalid, or expired API key",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Thread not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/threads/{id}": {
+      "patch": {
+        "operationId": "updateThread",
+        "summary": "Update thread",
+        "tags": [
+          "threads"
+        ],
+        "description": "Update a thread's read status. Use this to mark a thread as read after your agent has processed it, or as unread to re-queue it for later processing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "is_read"
+                ],
+                "properties": {
+                  "is_read": {
+                    "type": "boolean",
+                    "description": "Set to true to mark as read, false to mark as unread"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Thread updated",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Thread not found",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.openmail.sh"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "pods",
+      "description": "Isolated sub-accounts for your end users or tenants"
+    },
+    {
+      "name": "inboxes",
+      "description": "Email inboxes and their webhook configuration"
+    },
+    {
+      "name": "messages",
+      "description": "Sending and listing messages"
+    },
+    {
+      "name": "threads",
+      "description": "Conversation threads and read status"
+    },
+    {
+      "name": "attachments",
+      "description": "Downloading and extracting text from attachments"
+    }
+  ]
+}
