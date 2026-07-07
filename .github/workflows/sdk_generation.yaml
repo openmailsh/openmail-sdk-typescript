@@ -17,6 +17,14 @@ on:
       set_version:
         description: Override the SDK version
         type: string
+  # Fallback safety net: the primary trigger is the private API repo firing
+  # workflow_dispatch on every openapi.json change (see its ci.yml
+  # notify-sdk-repo job). Since this repo's source is a remote URL rather
+  # than a local file, there's no push-to-this-repo event to trigger on —
+  # if that cross-repo dispatch ever fails silently, this daily poll is
+  # what catches drift instead of it going unnoticed indefinitely.
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   generate:
