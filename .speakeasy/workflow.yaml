@@ -3,18 +3,7 @@ speakeasyVersion: latest
 sources:
     OpenMail API:
         inputs:
-            # The spec is committed to this repo (openapi.json at the root),
-            # synced here by the private API repo's CI whenever its canonical
-            # apps/api/src/openapi.json changes on main. Reading the committed
-            # file — rather than the live api.openmail.sh/openapi.json — means
-            # generation runs against the exact spec that changed, with no race
-            # against the API's (asynchronous) production deploy.
-            - location: ./openapi.json
-        overlays:
-            - location: .speakeasy/sdk-generation-overlay.yaml
-        output: .speakeasy/out.openapi.yaml
-        registry:
-            location: registry.speakeasyapi.dev/openmail/openmail-specs/open-mail-api
+            - location: registry.speakeasyapi.dev/openmail/openmail-specs/open-mail-api
 targets:
     openmail-sdk:
         target: typescript

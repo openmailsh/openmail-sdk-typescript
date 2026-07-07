@@ -8,16 +8,11 @@ permissions:
   id-token: write
 
 on:
-  # Primary trigger: the private API repo's CI commits an updated openapi.json
-  # into this repo whenever its canonical spec changes on main (see that repo's
-  # ci.yml notify-sdk-repo job). That push fires generation against the exact,
-  # committed spec — no race against the API's production deploy.
-  push:
-    branches: [main]
-    paths:
-      - openapi.json
-      - .speakeasy/gen.yaml
-      - .speakeasy/sdk-generation-overlay.yaml
+  # Primary trigger: the private API repo's CI publishes the updated spec to the
+  # Speakeasy registry and then dispatches this workflow (see that repo's ci.yml
+  # sync-sdk-spec job). This repo's source is the registry — nothing spec-related
+  # is committed here — so there's no in-repo file change to trigger on; the
+  # dispatch is the signal.
   workflow_dispatch:
     inputs:
       force:
@@ -27,7 +22,7 @@ on:
       set_version:
         description: Override the SDK version
         type: string
-  # Backstop: catches drift if the cross-repo spec sync ever fails silently.
+  # Backstop: catches drift if the cross-repo dispatch ever fails silently.
   schedule:
     - cron: "0 0 * * *"
 
