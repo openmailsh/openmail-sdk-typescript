@@ -3,14 +3,14 @@ speakeasyVersion: latest
 sources:
     OpenMail API:
         inputs:
-            - location: registry.speakeasyapi.dev/openmail/openmail-specs/open-mail-api
+            - location: registry.speakeasyapi.dev/openmail/openmail-specs/openmail-api
 targets:
     openmail-sdk:
         target: typescript
         source: OpenMail API
         codeSamples:
             registry:
-                location: registry.speakeasyapi.dev/openmail/openmail-specs/open-mail-api-typescript-code-samples
+                location: registry.speakeasyapi.dev/openmail/openmail-specs/openmail-api-typescript-code-samples
             labelOverride:
                 fixedValue: Typescript (SDK)
             blocking: false
