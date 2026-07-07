@@ -1,0 +1,39 @@
+speakeasyVersion: 1.789.0
+sources:
+    OpenMail API:
+        sourceNamespace: open-mail-api
+        sourceRevisionDigest: sha256:a98c5bab7ffa1f2cc6195930eb50994d73fdd49854c1b9e046407d03cf6413ec
+        sourceBlobDigest: sha256:f95801839ca0e64cdc03a6806c28b57bfbd01f95b87dd15d4a54c6f1072cd93c
+        tags:
+            - latest
+            - 1.0.0
+targets:
+    openmail-sdk:
+        source: OpenMail API
+        sourceNamespace: open-mail-api
+        sourceRevisionDigest: sha256:a98c5bab7ffa1f2cc6195930eb50994d73fdd49854c1b9e046407d03cf6413ec
+        sourceBlobDigest: sha256:f95801839ca0e64cdc03a6806c28b57bfbd01f95b87dd15d4a54c6f1072cd93c
+        codeSamplesNamespace: open-mail-api-typescript-code-samples
+        codeSamplesRevisionDigest: sha256:73d347b895c2302008640c28134f44657e9d59f91e7d9d9eba69db96153cc36c
+workflow:
+    workflowVersion: 1.0.0
+    speakeasyVersion: latest
+    sources:
+        OpenMail API:
+            inputs:
+                - location: https://api.openmail.sh/openapi.json
+            overlays:
+                - location: .speakeasy/sdk-generation-overlay.yaml
+            output: .speakeasy/out.openapi.yaml
+            registry:
+                location: registry.speakeasyapi.dev/openmail/openmail-specs/open-mail-api
+    targets:
+        openmail-sdk:
+            target: typescript
+            source: OpenMail API
+            codeSamples:
+                registry:
+                    location: registry.speakeasyapi.dev/openmail/openmail-specs/open-mail-api-typescript-code-samples
+                labelOverride:
+                    fixedValue: Typescript (SDK)
+                blocking: false

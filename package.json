@@ -1,0 +1,78 @@
+{
+  "name": "@openmail/sdk",
+  "version": "0.0.1",
+  "description": "Official TypeScript SDK for the OpenMail API — email infrastructure for AI agents.",
+  "author": "OpenMail",
+  "license": "MIT",
+  "homepage": "https://openmail.sh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmailsh/openmail-sdk-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/openmailsh/openmail-sdk-typescript/issues"
+  },
+  "keywords": [
+    "email",
+    "sdk",
+    "openmail",
+    "ai-agents"
+  ],
+  "type": "module",
+  "main": "./esm/index.js",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./esm/index.d.ts",
+      "default": "./esm/index.js"
+    },
+    "./package.json": "./package.json",
+    "./types": {
+      "source": "./src/types/index.ts",
+      "types": "./esm/types/index.d.ts",
+      "default": "./esm/types/index.js"
+    },
+    "./models/errors": {
+      "source": "./src/models/errors/index.ts",
+      "types": "./esm/models/errors/index.d.ts",
+      "default": "./esm/models/errors/index.js"
+    },
+    "./models": {
+      "source": "./src/models/index.ts",
+      "types": "./esm/models/index.d.ts",
+      "default": "./esm/models/index.js"
+    },
+    "./models/operations": {
+      "source": "./src/models/operations/index.ts",
+      "types": "./esm/models/operations/index.d.ts",
+      "default": "./esm/models/operations/index.js"
+    },
+    "./*.js": {
+      "source": "./src/*.ts",
+      "types": "./esm/*.d.ts",
+      "default": "./esm/*.js"
+    },
+    "./*": {
+      "source": "./src/*.ts",
+      "types": "./esm/*.d.ts",
+      "default": "./esm/*.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "lint": "oxlint --max-warnings=0 --deny-warnings src/**/*.ts src/**/*.tsx",
+    "build": "tsgo",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    
+  },
+  "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260302.1",
+    "oxlint": "^1.60.0",
+    "typescript": "~5.8.3"
+  },
+  "dependencies": {
+    "zod": "^3.25.65 || ^4.0.0"
+  }
+}

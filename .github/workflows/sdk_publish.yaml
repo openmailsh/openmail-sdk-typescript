@@ -1,0 +1,30 @@
+# NOTE: this file is a best-effort reconstruction, not a direct copy of
+# Speakeasy's own template. `speakeasy configure publishing` (the tool that
+# authoritatively generates this file) requires an interactive TTY that
+# wasn't available when this was written. Verify by running that command
+# locally and diffing the result against this file before relying on it.
+name: Publish SDK
+
+permissions:
+  checks: write
+  contents: write
+  pull-requests: write
+  statuses: write
+  id-token: write
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  publish:
+    if: github.event.pull_request.merged == true
+    uses: speakeasy-api/sdk-generation-action/.github/workflows/workflow-executor.yaml@v15
+    with:
+      speakeasy_version: latest
+      mode: pr
+    secrets:
+      github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      speakeasy_api_key: ${{ secrets.SPEAKEASY_API_KEY }}
+      npm_token: ${{ secrets.NPM_TOKEN }}
